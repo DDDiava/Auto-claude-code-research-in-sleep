@@ -39,6 +39,7 @@ def test_codex_skill_set_matches_mainline() -> None:
         "anchor-init",
         "claim-batch",
         "claim-gate",
+        "claim-pr-start",
         "claim-run",
         "claim-verdict",
         "claim-merge",
@@ -53,6 +54,7 @@ def test_codex_skill_set_matches_mainline() -> None:
 
 def test_claim_pr_wrapper_skills_use_arguments_for_claim_id() -> None:
     wrappers = {
+        "claim-pr-start",
         "claim-gate",
         "claim-run",
         "claim-verdict",
@@ -64,6 +66,41 @@ def test_claim_pr_wrapper_skills_use_arguments_for_claim_id() -> None:
             text = read(root / name / "SKILL.md")
             assert "C001" not in text
             assert "$ARGUMENTS" in text
+
+
+def test_claim_merge_documents_matrix_before_merge() -> None:
+    for root in (MAIN_SKILLS, CODEX_SKILLS):
+        text = read(root / "claim-merge" / "SKILL.md")
+        matrix_index = text.index("CLAIM_MATRIX.yaml")
+        finish_index = text.index("python -m researchctl claim finish")
+        merge_index = text.index("python -m researchctl claim merge")
+        assert matrix_index < finish_index < merge_index
+        assert "Fill `CLAIM_MATRIX.yaml` provenance fields" not in text
+
+
+def test_claim_pr_template_includes_claude_hook_adapters() -> None:
+    claude = REPO_ROOT / "templates" / "claim-pr-control-plane" / ".claude"
+    codex = REPO_ROOT / "templates" / "claim-pr-control-plane" / ".codex"
+    hooks = {
+        "researchctl-session-start.py": "session-start",
+        "researchctl-workflow-state.py": "workflow-state",
+        "researchctl-pre-tool.py": "pre-tool",
+        "researchctl-post-tool.py": "post-tool",
+        "researchctl-stop.py": "stop",
+    }
+
+    assert (claude / "settings.json").exists()
+    for hook_name, command in hooks.items():
+        claude_text = read(claude / "hooks" / hook_name)
+        codex_text = read(codex / "hooks" / hook_name)
+        assert f'"{command}"' in claude_text
+        assert f'"{command}"' in codex_text
+        assert "python" in claude_text.lower()
+        assert "researchctl" in claude_text
+
+    gitignore = read(REPO_ROOT / ".gitignore")
+    assert ".claude/" in gitignore
+    assert "!templates/claim-pr-control-plane/.claude/**" in gitignore
 
 
 def test_codex_reviewer_contract_partition() -> None:

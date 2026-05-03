@@ -19,6 +19,8 @@ __pycache__/
 
 # Claude Code local config — contains API keys and personal settings
 .claude/
+!templates/claim-pr-control-plane/.claude/
+!templates/claim-pr-control-plane/.claude/**
 
 # Patent output — contains confidential invention details, do not commit
 patent/

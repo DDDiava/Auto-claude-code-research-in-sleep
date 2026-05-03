@@ -1554,6 +1554,129 @@ def snapshot_paper(root_arg: str | os.PathLike[str] | None = None) -> dict:
         }
 
 
+def _context_entry(root: Path, path: Path, role: str) -> dict[str, Any]:
+    return {
+        "path": _rel(root, path),
+        "role": role,
+        "exists": path.exists(),
+        "type": "dir" if path.is_dir() else "file",
+    }
+
+
+def _context_event_path_entries(root: Path, conn, run: Any) -> list[dict[str, Any]]:
+    entries: list[dict[str, Any]] = []
+    event_keys = {
+        "metrics_recorded": ("metrics_path", "path", "file", "artifact_path"),
+        "artifact_recorded": ("artifact_path", "path", "file"),
+        "figure_recorded": ("figure_path", "artifact_path", "path", "file"),
+        "table_recorded": ("table_path", "artifact_path", "path", "file"),
+    }
+    for event_type, keys in event_keys.items():
+        for payload in _run_event_payloads(conn, run["id"], {event_type}):
+            ref = _payload_path_value(payload, *keys)
+            if not ref:
+                continue
+            resolved = _resolve_event_artifact_path(root, run, ref)
+            if resolved:
+                entries.append(_context_entry(root, resolved, f"run_{event_type}"))
+    return entries
+
+
+def _write_context_jsonl(path: Path, entries: list[dict[str, Any]], kind: str, claim_id: str | None) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with path.open("w", encoding="utf-8", newline="\n") as handle:
+        for entry in entries:
+            payload = {"kind": kind, "claim_id": claim_id, **entry}
+            handle.write(json.dumps(payload, sort_keys=True) + "\n")
+
+
+def context_payload(
+    kind: str,
+    claim_id: str | None = None,
+    write: bool = False,
+    root_arg: str | os.PathLike[str] | None = None,
+) -> dict[str, Any]:
+    if kind not in {"experiment", "judge", "writing"}:
+        raise ResearchCtlError(f"unsupported context kind: {kind}")
+    if kind in {"experiment", "judge"} and not claim_id:
+        raise ResearchCtlError(f"context {kind} requires --claim")
+
+    root = repo_root(root_arg)
+    entries: list[dict[str, Any]] = []
+    output_path: Path | None = None
+    with connect(root) as conn:
+        claim = _get_claim(conn, claim_id) if claim_id else None
+        claim_dir = object_path(root, claim["object_path"]) if claim else None
+        worktree_dir = object_path(root, claim["worktree_path"]) if claim and claim["worktree_path"] else None
+
+        if kind == "experiment":
+            if claim_dir is None or worktree_dir is None:
+                raise ResearchCtlError(f"claim paths missing: {claim_id}")
+            entries.extend(
+                [
+                    _context_entry(root, claim_dir / "CONTRACT.yaml", "frozen_contract"),
+                    _context_entry(root, claim_dir / "PLAN.md", "experiment_plan"),
+                    _context_entry(root, worktree_dir, "claim_worktree"),
+                ]
+            )
+            output_path = claim_dir / "experiment.jsonl"
+
+        elif kind == "judge":
+            if claim_dir is None:
+                raise ResearchCtlError(f"claim path missing: {claim_id}")
+            entries.extend(
+                [
+                    _context_entry(root, claim_dir / "CONTRACT.yaml", "frozen_contract"),
+                    _context_entry(root, claim_dir / "EVIDENCE.md", "evidence_summary"),
+                    _context_entry(root, claim_dir / "VERDICT.yaml", "verdict_target"),
+                ]
+            )
+            for run in conn.execute("SELECT * FROM runs WHERE claim_id = ? ORDER BY id", (claim_id,)):
+                artifact_root = _run_artifact_path(root, run)
+                if artifact_root:
+                    entries.append(_context_entry(root, artifact_root, f"run_{run['id']}_artifact_root"))
+                    entries.append(_context_entry(root, artifact_root / "metrics.json", f"run_{run['id']}_metrics"))
+                entries.extend(_context_event_path_entries(root, conn, run))
+            output_path = claim_dir / "judge.jsonl"
+
+        else:
+            entries.extend(
+                [
+                    _context_entry(root, paper_dir(root) / "CLAIM_MATRIX.yaml", "claim_matrix"),
+                    _context_entry(root, paper_dir(root) / "CITATION_LEDGER.json", "citation_ledger"),
+                ]
+            )
+            params: tuple[Any, ...]
+            query = "SELECT * FROM claims WHERE paper_merge_status = 'merged'"
+            if claim_id:
+                query += " AND id = ?"
+                params = (claim_id,)
+            else:
+                params = ()
+            for merged in conn.execute(query + " ORDER BY id", params):
+                merged_dir = object_path(root, merged["object_path"])
+                if not merged_dir:
+                    continue
+                entries.extend(
+                    [
+                        _context_entry(root, merged_dir / "CLAIM.md", f"merged_claim_{merged['id']}_claim"),
+                        _context_entry(root, merged_dir / "EVIDENCE.md", f"merged_claim_{merged['id']}_evidence"),
+                        _context_entry(root, merged_dir / "VERDICT.yaml", f"merged_claim_{merged['id']}_verdict"),
+                    ]
+                )
+            output_path = (claim_dir / "writing.jsonl") if claim_dir else (paper_dir(root) / "writing.jsonl")
+
+    payload: dict[str, Any] = {
+        "kind": kind,
+        "claim_id": claim_id,
+        "files": entries,
+    }
+    if write and output_path:
+        _write_context_jsonl(output_path, entries, kind, claim_id)
+        payload["written"] = _rel(root, output_path)
+    return payload
+
+
 def _normalize_rel(path: str, root: Path) -> str:
     candidate = Path(path)
     if candidate.is_absolute():

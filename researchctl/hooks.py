@@ -37,7 +37,9 @@ def status_to_workflow_state(status: str | None, stage: str | None) -> str:
         return "no_claim"
     if status == "draft":
         return "draft"
-    if status == "gated" or stage == "contract_frozen":
+    if stage == "contract_frozen":
+        return "contract_frozen"
+    if status == "gated":
         return "gated"
     if status == "running":
         return "running"

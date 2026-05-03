@@ -38,6 +38,13 @@ Parameters pass through workflow chains automatically.
 
 ## Workflow Index
 
+### Claim-PR Control Plane (Recommended)
+```
+/claim-pr-start "direction" -> init -> anchor-init -> claim-batch -> claim-gate -> claim-run -> claim-verdict -> claim-merge -> paper-build
+```
+
+Use this evidence-governed path when each claim needs a frozen contract, registered runs, explicit verdict, review, and paper-input gate. `/research-pipeline`, `/idea-discovery`, and `/auto-review-loop` remain legacy/compatibility full-pipeline paths and should not be removed or weakened.
+
 ### Full Pipeline
 ```
 /research-pipeline "direction" → W1 → W1.5 → W2 → W3

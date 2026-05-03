@@ -147,7 +147,7 @@ def test_init_installs_workflow_constitution_and_blocks_empty_paper_build(tmp_pa
     workflow = tmp_path / ".aris" / "workflow.md"
     assert workflow.exists()
     workflow_text = workflow.read_text(encoding="utf-8")
-    for state in ("no_claim", "draft", "gated", "running", "judging", "merged", "archived"):
+    for state in ("no_claim", "draft", "gated", "contract_frozen", "running", "judging", "merged", "archived"):
         assert f"[workflow-state:{state}]" in workflow_text
 
     build = run_ctl(tmp_path, "paper", "build", check=False)
@@ -155,6 +155,44 @@ def test_init_installs_workflow_constitution_and_blocks_empty_paper_build(tmp_pa
     blockers = read_json(build.stdout)["blockers"]
     assert "merged_claims.yaml has no merged claims" in blockers
     assert "CLAIM_MATRIX.yaml has no claims" in blockers
+
+
+def test_context_commands_write_minimal_jsonl_without_events(tmp_path: Path) -> None:
+    run_ctl(tmp_path, "init")
+    run_ctl(tmp_path, "anchor", "create", "Anchor")
+    claim = read_json(run_ctl(tmp_path, "claim", "create", "A001", "Prototype gate improves tail accuracy").stdout)
+    claim_dir = tmp_path / claim["object_path"]
+    run_ctl(tmp_path, "claim", "gate", "C001", "--decision", "approve")
+    write_valid_contract(claim_dir)
+    run_ctl(tmp_path, "claim", "freeze-contract", "C001")
+
+    experiment = read_json(run_ctl(tmp_path, "context", "experiment", "--claim", "C001", "--write").stdout)
+    assert experiment["written"].endswith("experiment.jsonl")
+    experiment_text = (claim_dir / "experiment.jsonl").read_text(encoding="utf-8")
+    assert "CONTRACT.yaml" in experiment_text
+    assert "PLAN.md" in experiment_text
+    assert "worktrees/C001" in experiment_text
+
+    run_ctl(tmp_path, "run", "start", "--claim", "C001", "--cmd", "python train.py")
+    record_valid_run_provenance(tmp_path)
+    with sqlite3.connect(tmp_path / ".aris" / "state.db") as conn:
+        before_events = conn.execute("SELECT COUNT(*) FROM events").fetchone()[0]
+
+    judge = read_json(run_ctl(tmp_path, "context", "judge", "--claim", "C001", "--write").stdout)
+    assert judge["written"].endswith("judge.jsonl")
+    judge_text = (claim_dir / "judge.jsonl").read_text(encoding="utf-8")
+    assert "EVIDENCE.md" in judge_text
+    assert "artifacts/R001/metrics.json" in judge_text
+
+    writing = read_json(run_ctl(tmp_path, "context", "writing", "--write").stdout)
+    assert writing["written"] == ".aris/paper/writing.jsonl"
+    writing_text = (tmp_path / ".aris" / "paper" / "writing.jsonl").read_text(encoding="utf-8")
+    assert "CLAIM_MATRIX.yaml" in writing_text
+    assert "CITATION_LEDGER.json" in writing_text
+
+    with sqlite3.connect(tmp_path / ".aris" / "state.db") as conn:
+        after_events = conn.execute("SELECT COUNT(*) FROM events").fetchone()[0]
+    assert after_events == before_events
 
 
 def test_claim_lifecycle_snapshot_and_finish_gate(tmp_path: Path) -> None:

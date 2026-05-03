@@ -15,6 +15,7 @@ from .core import (
     audit_submission,
     create_anchor,
     create_claim,
+    context_payload,
     detach_session,
     finish_claim,
     finish_run,
@@ -144,6 +145,13 @@ def build_parser() -> argparse.ArgumentParser:
     p = review_sub.add_parser("list")
     p.add_argument("--claim")
 
+    context = sub.add_parser("context")
+    context_sub = context.add_subparsers(dest="command", required=True)
+    for context_name in ("experiment", "judge", "writing"):
+        p = context_sub.add_parser(context_name)
+        p.add_argument("--claim")
+        p.add_argument("--write", action="store_true")
+
     snapshot = sub.add_parser("snapshot")
     snapshot_sub = snapshot.add_subparsers(dest="command", required=True)
     p = snapshot_sub.add_parser("session")
@@ -251,6 +259,8 @@ def main(argv: list[str] | None = None) -> int:
                 emit(add_review(args.claim, args.role, args.decision, args.source, root))
             elif args.command == "list":
                 emit(list_reviews(args.claim, root))
+        elif args.group == "context":
+            emit(context_payload(args.command, args.claim, args.write, root))
         elif args.group == "snapshot":
             if args.command == "session":
                 emit(snapshot_session(args.session, root))

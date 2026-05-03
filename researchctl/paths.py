@@ -57,6 +57,12 @@ Default next action: freeze CONTRACT.yaml with `python -m researchctl claim free
 Do not change success or failure signals after the contract hash is recorded.
 [/workflow-state:gated]
 
+[workflow-state:contract_frozen]
+The active claim contract is frozen.
+Default next action: start registered runs with `python -m researchctl run start`.
+Do not edit CONTRACT.yaml or broaden the claim after this point.
+[/workflow-state:contract_frozen]
+
 [workflow-state:running]
 The active claim is executing.
 Default next action: monitor registered runs, collect artifacts, and update EVIDENCE.md.

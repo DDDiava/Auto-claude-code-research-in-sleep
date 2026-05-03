@@ -74,6 +74,14 @@ Custom [Claude Code](https://docs.anthropic.com/en/docs/claude-code) skills for 
 /research-pipeline "factorized gap in discrete diffusion LMs"
 ```
 
+**Claim-PR mode (recommended for evidence-governed research)** — make each claim a reviewable unit with frozen contracts, registered runs, verdict gates, and paper-input checks:
+
+```
+/claim-pr-start "factorized gap in discrete diffusion LMs"
+```
+
+This route initializes the local `researchctl` control plane, then guides `anchor-init -> claim-batch -> claim-gate -> claim-run -> claim-verdict -> claim-merge -> paper-build`. `/research-pipeline`, `/idea-discovery`, and `/auto-review-loop` remain available as legacy/compatibility full-pipeline paths when you want the older end-to-end flow.
+
 **🔥 Targeted mode** — got a paper you want to improve? Give ARIS the paper + the code:
 
 ```

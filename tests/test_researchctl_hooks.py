@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from researchctl.core import ResearchCtlError, attach_session, create_anchor, create_claim, freeze_contract, gate_claim
+from researchctl.core import ResearchCtlError, attach_session, create_anchor, create_claim, freeze_contract, gate_claim, start_run
 from researchctl.db import connect, one
 from researchctl.hooks import load_workflow_blocks, post_tool_hook, pre_tool_hook, stop_hook, workflow_state_hook
 
@@ -20,6 +20,14 @@ Draft block.
 [workflow-state:gated]
 Gated block.
 [/workflow-state:gated]
+
+[workflow-state:contract_frozen]
+Contract frozen block.
+[/workflow-state:contract_frozen]
+
+[workflow-state:running]
+Running block.
+[/workflow-state:running]
 """
 
 
@@ -96,7 +104,24 @@ def test_workflow_state_hook_reads_blocks_from_workflow_md(tmp_path: Path) -> No
 
     gate_claim("C001", "approve", root_arg=tmp_path)
     payload = workflow_state_hook(tmp_path, {"session": "S1"})
-    assert "Gated block." in payload["hookSpecificOutput"]["additionalContext"]
+    gated_context = payload["hookSpecificOutput"]["additionalContext"]
+    assert "Claim: C001 (gated)" in gated_context
+    assert "Gated block." in gated_context
+
+    claim_dir = next((tmp_path / ".aris" / "anchors" / "A001_anchor" / "CLAIMS").glob("C001_*"))
+    write_valid_contract(claim_dir)
+    freeze_contract("C001", root_arg=tmp_path)
+    payload = workflow_state_hook(tmp_path, {"session": "S1"})
+    frozen_context = payload["hookSpecificOutput"]["additionalContext"]
+    assert "Claim: C001 (contract_frozen)" in frozen_context
+    assert "Contract frozen block." in frozen_context
+    assert "Gated block." not in frozen_context
+
+    start_run("C001", "python train.py", root_arg=tmp_path)
+    payload = workflow_state_hook(tmp_path, {"session": "S1"})
+    running_context = payload["hookSpecificOutput"]["additionalContext"]
+    assert "Claim: C001 (running)" in running_context
+    assert "Running block." in running_context
 
 
 def test_missing_workflow_state_block_falls_back_visibly(tmp_path: Path) -> None:
