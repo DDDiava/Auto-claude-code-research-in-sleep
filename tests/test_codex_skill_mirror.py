@@ -16,7 +16,7 @@ def skill_names(root: Path) -> set[str]:
 
 
 def read(path: Path) -> str:
-    return path.read_text()
+    return path.read_text(encoding="utf-8")
 
 
 def has_spawn_agent_block(text: str) -> bool:
@@ -30,8 +30,40 @@ def has_send_input_block(text: str) -> bool:
 def test_codex_skill_set_matches_mainline() -> None:
     main_names = skill_names(MAIN_SKILLS)
     codex_names = skill_names(CODEX_SKILLS)
-    assert len(main_names) == 67
-    assert main_names == codex_names
+    main_only = {
+        "gemini-search",
+        "openalex",
+        "paper-illustration-image2",
+    }
+    claim_pr_wrappers = {
+        "anchor-init",
+        "claim-batch",
+        "claim-gate",
+        "claim-run",
+        "claim-verdict",
+        "claim-merge",
+        "finish-claim",
+        "paper-build",
+    }
+    assert len(main_names) >= 67
+    assert claim_pr_wrappers <= main_names
+    assert claim_pr_wrappers <= codex_names
+    assert main_names - main_only == codex_names
+
+
+def test_claim_pr_wrapper_skills_use_arguments_for_claim_id() -> None:
+    wrappers = {
+        "claim-gate",
+        "claim-run",
+        "claim-verdict",
+        "claim-merge",
+        "finish-claim",
+    }
+    for root in (MAIN_SKILLS, CODEX_SKILLS):
+        for name in wrappers:
+            text = read(root / name / "SKILL.md")
+            assert "C001" not in text
+            assert "$ARGUMENTS" in text
 
 
 def test_codex_reviewer_contract_partition() -> None:

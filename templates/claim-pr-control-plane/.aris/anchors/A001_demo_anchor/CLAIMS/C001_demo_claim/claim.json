@@ -1,0 +1,45 @@
+{
+  "id": "C001",
+  "title": "Demo claim",
+  "anchor_id": "A001",
+  "creator": "human",
+  "assignee": "builder",
+  "status": "draft",
+  "stage": "planning",
+  "branch": "claim/c001-demo-claim",
+  "base_branch": "main",
+  "worktree_path": "worktrees/C001",
+  "contract_hash": null,
+  "run_ids": [],
+  "verdict": null,
+  "paper_merge_status": "not_eligible",
+  "budget": {
+    "gpu_hours_limit": 20.0,
+    "gpu_hours_used": 0.0,
+    "token_usd_limit": 30.0,
+    "token_usd_used": 0.0
+  },
+  "next_action": [
+    {
+      "phase": 1,
+      "action": "claim-gate"
+    },
+    {
+      "phase": 2,
+      "action": "contract-freeze"
+    },
+    {
+      "phase": 3,
+      "action": "claim-run"
+    },
+    {
+      "phase": 4,
+      "action": "claim-verdict"
+    },
+    {
+      "phase": 5,
+      "action": "claim-merge"
+    }
+  ],
+  "meta": {}
+}

@@ -44,3 +44,8 @@ patent/
 
 # OMC runtime state
 .omc/
+
+# ARIS Claim-PR local runtime state
+.aris/state.db
+.aris/events/
+.aris/.runtime/

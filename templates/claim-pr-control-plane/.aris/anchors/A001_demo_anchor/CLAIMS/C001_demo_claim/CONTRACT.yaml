@@ -1,0 +1,29 @@
+version: 1
+claim_id: C001
+
+hypothesis:
+  text: "Demo claim"
+
+scope:
+  baseline_commit: ""
+  datasets: []
+  primary_metric: ""
+  fixed_protocol: []
+
+success_signals:
+  - id: S1
+    text: "TODO"
+
+failure_signals:
+  - id: F1
+    text: "TODO"
+
+budget:
+  gpu_hours_limit: 20
+  token_usd_limit: 30
+
+stop_rules:
+  - "Stop if pilot evidence contradicts the primary signal."
+
+reporting_rules:
+  - "Do not modify success/failure signals after observing results."

@@ -1,0 +1,21 @@
+version: 1
+control_plane: claim-pr
+
+state:
+  database: .aris/state.db
+  events: .aris/events
+  runtime_sessions: .aris/.runtime/sessions
+
+policy:
+  active_claim_scope: session
+  require_contract_freeze_before_run: true
+  require_verdict_before_merge: true
+  paper_build_reads_merged_claims_only: true
+
+worktree_policy:
+  default_root: worktrees
+  single_write_session_per_worktree: true
+  shared_artifact_roots:
+    - artifacts
+    - logs
+  paper_read_policy: merged_claims_only

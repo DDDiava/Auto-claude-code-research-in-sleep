@@ -1,0 +1,9 @@
+claim_id: C001
+verdict: null
+confidence: null
+risk_notes: []
+allowed_scope:
+  abstract: []
+  conclusion: []
+  forbidden: []
+next_action: []
