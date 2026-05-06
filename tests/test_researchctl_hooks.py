@@ -247,6 +247,42 @@ def test_codex_pre_tool_platform_output_uses_permission_schema(tmp_path: Path) -
     assert "outside active claim allowed paths" in hook_output["permissionDecisionReason"]
 
 
+def test_codex_pre_tool_platform_output_omits_allow_permission_decision(tmp_path: Path) -> None:
+    create_anchor("Anchor", root_arg=tmp_path)
+    create_claim("A001", "Claim", root_arg=tmp_path)
+    attach_session("S1", "C001", role="builder", root_arg=tmp_path)
+
+    proc = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "researchctl",
+            "--root",
+            str(tmp_path),
+            "hook",
+            "pre-tool",
+            "--platform",
+            "codex",
+        ],
+        input=json.dumps(
+            {
+                "session": "S1",
+                "tool_name": "Write",
+                "tool_input": {"path": "artifacts/R001/metrics.json"},
+            }
+        ),
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+    assert proc.returncode == 0
+    payload = json.loads(proc.stdout)
+    assert payload["continue"] is True
+    hook_output = payload["hookSpecificOutput"]
+    assert hook_output["hookEventName"] == "PreToolUse"
+    assert "permissionDecision" not in hook_output
+
+
 def test_pre_tool_hook_denies_bash_cross_worktree_write(tmp_path: Path) -> None:
     create_anchor("Anchor", root_arg=tmp_path)
     create_claim("A001", "Claim", root_arg=tmp_path)

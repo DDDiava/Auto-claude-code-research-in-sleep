@@ -310,21 +310,21 @@ def main(argv: list[str] | None = None) -> int:
                 if args.platform == "raw":
                     emit(result)
                     return code
-                emit(platform_hook_output("Stop", code, result))
+                emit(platform_hook_output("Stop", code, result, args.platform))
                 return 0
             elif args.command == "pre-tool":
                 code, result = pre_tool_hook(root, hook_input, args.session)
                 if args.platform == "raw":
                     emit(result)
                     return code
-                emit(platform_hook_output("PreToolUse", code, result))
+                emit(platform_hook_output("PreToolUse", code, result, args.platform))
                 return 0
             elif args.command == "post-tool":
                 code, result = post_tool_hook(root, hook_input, args.session)
                 if args.platform == "raw":
                     emit(result)
                     return code
-                emit(platform_hook_output("PostToolUse", code, result))
+                emit(platform_hook_output("PostToolUse", code, result, args.platform))
                 return 0
         return 0
     except (ResearchCtlError, json.JSONDecodeError) as exc:

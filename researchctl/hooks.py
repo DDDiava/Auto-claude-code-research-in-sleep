@@ -126,7 +126,7 @@ def stop_hook(root: Path, input_data: dict | None = None, session_key: str | Non
     return (0 if result["ok"] else 2), result
 
 
-def platform_hook_output(event_name: str, code: int, payload: dict) -> dict:
+def platform_hook_output(event_name: str, code: int, payload: dict, platform: str = "claude") -> dict:
     """Translate internal researchctl hook results to agent hook JSON.
 
     The CLI keeps the raw `ok`/`decision` payload for tests and direct
@@ -141,9 +141,13 @@ def platform_hook_output(event_name: str, code: int, payload: dict) -> dict:
             "continue": True,
             "hookSpecificOutput": {
                 "hookEventName": "PreToolUse",
-                "permissionDecision": decision,
             },
         }
+        # Codex currently rejects an explicit permissionDecision="allow".
+        # Omit the field on allow so the default permission flow proceeds;
+        # keep deny explicit so guardrail blockers still stop the tool.
+        if not (platform == "codex" and decision == "allow"):
+            output["hookSpecificOutput"]["permissionDecision"] = decision
         if reason:
             output["hookSpecificOutput"]["permissionDecisionReason"] = reason
         return output
