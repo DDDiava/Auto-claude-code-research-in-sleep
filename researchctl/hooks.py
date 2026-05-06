@@ -137,6 +137,7 @@ def platform_hook_output(event_name: str, code: int, payload: dict, platform: st
         blockers = payload.get("blockers") if isinstance(payload.get("blockers"), list) else []
         reason = "; ".join(str(item) for item in blockers if str(item).strip())
         decision = "allow" if code == 0 and payload.get("ok", True) else "deny"
+        is_codex_allow = platform == "codex" and decision == "allow"
         output = {
             "continue": True,
             "hookSpecificOutput": {
@@ -146,9 +147,9 @@ def platform_hook_output(event_name: str, code: int, payload: dict, platform: st
         # Codex currently rejects an explicit permissionDecision="allow".
         # Omit the field on allow so the default permission flow proceeds;
         # keep deny explicit so guardrail blockers still stop the tool.
-        if not (platform == "codex" and decision == "allow"):
+        if not is_codex_allow:
             output["hookSpecificOutput"]["permissionDecision"] = decision
-        if reason:
+        if reason and not is_codex_allow:
             output["hookSpecificOutput"]["permissionDecisionReason"] = reason
         return output
 
@@ -171,6 +172,27 @@ def platform_hook_output(event_name: str, code: int, payload: dict, platform: st
         return output
 
     if event_name == "Stop":
+        if platform == "codex":
+            if code == 0 and payload.get("ok", True):
+                return {
+                    "continue": True,
+                    "systemMessage": "<researchctl-stop>\n"
+                    + json.dumps(payload, ensure_ascii=False, sort_keys=True)
+                    + "\n</researchctl-stop>",
+                }
+            blockers = payload.get("blockers") if isinstance(payload.get("blockers"), list) else []
+            reason = "; ".join(str(item) for item in blockers if str(item).strip()) or str(
+                payload.get("error") or "researchctl stop gate failed"
+            )
+            return {
+                "continue": False,
+                "decision": "block",
+                "reason": reason,
+                "stopReason": reason,
+                "systemMessage": "<researchctl-stop>\n"
+                + json.dumps(payload, ensure_ascii=False, sort_keys=True)
+                + "\n</researchctl-stop>",
+            }
         if code == 0 and payload.get("ok", True):
             return {
                 "continue": True,
@@ -197,7 +219,7 @@ def platform_hook_output(event_name: str, code: int, payload: dict, platform: st
     return payload
 
 
-def platform_hook_error(event_name: str, error: Exception) -> dict:
+def platform_hook_error(event_name: str, error: Exception, platform: str = "claude") -> dict:
     message = str(error)
     if event_name == "PreToolUse":
         return {
@@ -209,6 +231,13 @@ def platform_hook_error(event_name: str, error: Exception) -> dict:
             },
         }
     if event_name == "Stop":
+        if platform == "codex":
+            return {
+                "continue": False,
+                "decision": "block",
+                "reason": f"researchctl stop hook error: {message}",
+                "stopReason": f"researchctl stop hook error: {message}",
+            }
         return {
             "continue": False,
             "stopReason": f"researchctl stop hook error: {message}",

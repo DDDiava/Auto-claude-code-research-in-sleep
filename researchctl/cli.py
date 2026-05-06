@@ -336,7 +336,7 @@ def main(argv: list[str] | None = None) -> int:
                 "pre-tool": "PreToolUse",
                 "post-tool": "PostToolUse",
             }
-            emit(platform_hook_error(event_names.get(getattr(args, "command", ""), "PostToolUse"), exc))
+            emit(platform_hook_error(event_names.get(getattr(args, "command", ""), "PostToolUse"), exc, getattr(args, "platform", "claude")))
             return 0
         print(f"researchctl: error: {exc}", file=sys.stderr)
         return 1

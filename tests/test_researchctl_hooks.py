@@ -7,7 +7,7 @@ from pathlib import Path
 
 from researchctl.core import ResearchCtlError, attach_session, create_anchor, create_claim, freeze_contract, gate_claim, start_run
 from researchctl.db import connect, one
-from researchctl.hooks import load_workflow_blocks, post_tool_hook, pre_tool_hook, stop_hook, workflow_state_hook
+from researchctl.hooks import load_workflow_blocks, platform_hook_output, post_tool_hook, pre_tool_hook, stop_hook, workflow_state_hook
 
 
 WORKFLOW = """# Research Workflow
@@ -281,6 +281,22 @@ def test_codex_pre_tool_platform_output_omits_allow_permission_decision(tmp_path
     hook_output = payload["hookSpecificOutput"]
     assert hook_output["hookEventName"] == "PreToolUse"
     assert "permissionDecision" not in hook_output
+
+
+def test_codex_stop_platform_output_uses_stop_schema() -> None:
+    ok_payload = {"ok": True, "idempotent": True}
+    ok_output = platform_hook_output("Stop", 0, ok_payload, "codex")
+    assert ok_output["continue"] is True
+    assert "hookSpecificOutput" not in ok_output
+    assert "researchctl-stop" in ok_output["systemMessage"]
+
+    blocked_payload = {"ok": False, "blockers": ["missing EVIDENCE.md"]}
+    blocked_output = platform_hook_output("Stop", 2, blocked_payload, "codex")
+    assert blocked_output["continue"] is False
+    assert blocked_output["decision"] == "block"
+    assert blocked_output["reason"] == "missing EVIDENCE.md"
+    assert blocked_output["stopReason"] == "missing EVIDENCE.md"
+    assert "hookSpecificOutput" not in blocked_output
 
 
 def test_pre_tool_hook_denies_bash_cross_worktree_write(tmp_path: Path) -> None:
