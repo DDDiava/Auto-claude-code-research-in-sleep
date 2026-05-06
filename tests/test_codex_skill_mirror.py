@@ -103,6 +103,35 @@ def test_claim_pr_template_includes_claude_hook_adapters() -> None:
     assert "!templates/claim-pr-control-plane/.claude/**" in gitignore
 
 
+def test_claim_pr_bootstrap_is_repo_level_entry() -> None:
+    bootstrap = REPO_ROOT / "bootstrap_claim_pr_project.py"
+    assert bootstrap.exists()
+    text = read(bootstrap)
+    assert "claim-pr-control-plane" in text
+    assert "bootstrap_manifest.json" in text
+
+    template_readme = read(REPO_ROOT / "templates" / "claim-pr-control-plane" / "README.md")
+    assert "bootstrap_claim_pr_project.py" in template_readme
+    assert "Copy the template files" not in template_readme
+
+
+def test_legacy_paths_are_not_documented_as_submission_defaults() -> None:
+    readme = read(REPO_ROOT / "README.md")
+    assert "**Default Claim-PR mode**" in readme
+    assert "**Legacy exploratory mode**" in readme
+    assert "not the submission-grade path until its outputs are migrated into Claim-PR objects" in readme
+
+    for root in (MAIN_SKILLS, CODEX_SKILLS):
+        pipeline = read(root / "research-pipeline" / "SKILL.md")
+        assert "Legacy Research Pipeline" in pipeline
+        assert "researchctl paper build" in pipeline
+        assert "researchctl audit submission" in pipeline
+
+        paper_writing = read(root / "paper-writing" / "SKILL.md")
+        assert "Claim-PR submission gate" in paper_writing
+        assert "python -m researchctl audit submission" in paper_writing
+
+
 def test_codex_reviewer_contract_partition() -> None:
     codex_names = skill_names(CODEX_SKILLS)
     single_round: set[str] = set()

@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+import json
+import subprocess
+import sys
 from pathlib import Path
 
 from researchctl.core import ResearchCtlError, attach_session, create_anchor, create_claim, freeze_contract, gate_claim, start_run
@@ -204,6 +207,44 @@ def test_pre_tool_hook_denies_cross_worktree_write(tmp_path: Path) -> None:
     assert code == 2
     assert payload["decision"] == "deny"
     assert "outside active claim allowed paths" in payload["blockers"][0]
+
+
+def test_codex_pre_tool_platform_output_uses_permission_schema(tmp_path: Path) -> None:
+    create_anchor("Anchor", root_arg=tmp_path)
+    create_claim("A001", "Claim", root_arg=tmp_path)
+    attach_session("S1", "C001", role="builder", root_arg=tmp_path)
+
+    proc = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "researchctl",
+            "--root",
+            str(tmp_path),
+            "hook",
+            "pre-tool",
+            "--platform",
+            "codex",
+        ],
+        input=json.dumps(
+            {
+                "session": "S1",
+                "tool_name": "Write",
+                "tool_input": {"path": "worktrees/C999/train.py"},
+            }
+        ),
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+    assert proc.returncode == 0
+    payload = json.loads(proc.stdout)
+    assert "decision" not in payload
+    assert payload["continue"] is True
+    hook_output = payload["hookSpecificOutput"]
+    assert hook_output["hookEventName"] == "PreToolUse"
+    assert hook_output["permissionDecision"] == "deny"
+    assert "outside active claim allowed paths" in hook_output["permissionDecisionReason"]
 
 
 def test_pre_tool_hook_denies_bash_cross_worktree_write(tmp_path: Path) -> None:

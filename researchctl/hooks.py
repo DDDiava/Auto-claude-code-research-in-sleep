@@ -126,6 +126,97 @@ def stop_hook(root: Path, input_data: dict | None = None, session_key: str | Non
     return (0 if result["ok"] else 2), result
 
 
+def platform_hook_output(event_name: str, code: int, payload: dict) -> dict:
+    """Translate internal researchctl hook results to agent hook JSON.
+
+    The CLI keeps the raw `ok`/`decision` payload for tests and direct
+    debugging. Codex and Claude hook runners are stricter, so template hook
+    adapters request this platform output instead of printing raw state.
+    """
+    if event_name == "PreToolUse":
+        blockers = payload.get("blockers") if isinstance(payload.get("blockers"), list) else []
+        reason = "; ".join(str(item) for item in blockers if str(item).strip())
+        decision = "allow" if code == 0 and payload.get("ok", True) else "deny"
+        output = {
+            "continue": True,
+            "hookSpecificOutput": {
+                "hookEventName": "PreToolUse",
+                "permissionDecision": decision,
+            },
+        }
+        if reason:
+            output["hookSpecificOutput"]["permissionDecisionReason"] = reason
+        return output
+
+    if event_name == "PostToolUse":
+        output = {
+            "continue": True,
+            "hookSpecificOutput": {
+                "hookEventName": "PostToolUse",
+            },
+        }
+        if payload.get("error"):
+            output["systemMessage"] = f"researchctl post-tool warning: {payload['error']}"
+        events = payload.get("events")
+        if events:
+            output["hookSpecificOutput"]["additionalContext"] = (
+                "<researchctl-post-tool>\n"
+                + json.dumps({"events": events}, ensure_ascii=False, sort_keys=True)
+                + "\n</researchctl-post-tool>"
+            )
+        return output
+
+    if event_name == "Stop":
+        if code == 0 and payload.get("ok", True):
+            return {
+                "continue": True,
+                "hookSpecificOutput": {
+                    "hookEventName": "Stop",
+                    "additionalContext": "<researchctl-stop>\n"
+                    + json.dumps(payload, ensure_ascii=False, sort_keys=True)
+                    + "\n</researchctl-stop>",
+                },
+            }
+        blockers = payload.get("blockers") if isinstance(payload.get("blockers"), list) else []
+        reason = "; ".join(str(item) for item in blockers if str(item).strip()) or str(payload.get("error") or "researchctl stop gate failed")
+        return {
+            "continue": False,
+            "stopReason": reason,
+            "hookSpecificOutput": {
+                "hookEventName": "Stop",
+                "additionalContext": "<researchctl-stop>\n"
+                + json.dumps(payload, ensure_ascii=False, sort_keys=True)
+                + "\n</researchctl-stop>",
+            },
+        }
+
+    return payload
+
+
+def platform_hook_error(event_name: str, error: Exception) -> dict:
+    message = str(error)
+    if event_name == "PreToolUse":
+        return {
+            "continue": True,
+            "hookSpecificOutput": {
+                "hookEventName": "PreToolUse",
+                "permissionDecision": "deny",
+                "permissionDecisionReason": f"researchctl hook error: {message}",
+            },
+        }
+    if event_name == "Stop":
+        return {
+            "continue": False,
+            "stopReason": f"researchctl stop hook error: {message}",
+            "hookSpecificOutput": {"hookEventName": "Stop"},
+        }
+    return {
+        "continue": True,
+        "systemMessage": f"researchctl {event_name} hook warning: {message}",
+        "hookSpecificOutput": {"hookEventName": event_name},
+    }
+
+
 def _input_value(input_data: dict, *keys: str) -> str | None:
     for key in keys:
         value = input_data.get(key)

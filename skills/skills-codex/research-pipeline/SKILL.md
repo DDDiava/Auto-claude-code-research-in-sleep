@@ -1,11 +1,13 @@
 ---
 name: "research-pipeline"
-description: "Full research pipeline: Workflow 1 (idea discovery) \u2192 implementation \u2192 Workflow 2 (auto review loop). Goes from a broad research direction all the way to a submission-ready paper. Use when user says \\\"\u5168\u6d41\u7a0b\\\", \\\"full pipeline\\\", \\\"\u4ece\u627eidea\u5230\u6295\u7a3f\\\", \\\"end-to-end research\\\", or wants the complete autonomous research lifecycle."
+description: "Legacy exploratory full pipeline. Runs Workflow 1 and compatibility implementation/review/writing steps, but submission-grade research must migrate into the Claim-PR truth layer (`researchctl` claim/run/verdict/paper-build). Use `/claim-pr-start` as the default evidence-governed path."
 ---
 
-# Full Research Pipeline: Idea → Experiments → Submission
+# Legacy Research Pipeline: Idea → Claim-PR Handoff → Draft
 
-End-to-end autonomous research workflow for: **$ARGUMENTS**
+Compatibility research workflow for: **$ARGUMENTS**
+
+> **Default path:** Use `/claim-pr-start` for evidence-governed or submission-grade projects. This legacy pipeline may explore ideas and draft narrative material, but it must not declare submission readiness until outputs are represented as `researchctl` claims, registered runs, verdicts, `CLAIM_MATRIX.yaml`, and a passing `researchctl paper build` / `researchctl audit submission`.
 
 ## Constants
 
@@ -20,14 +22,14 @@ End-to-end autonomous research workflow for: **$ARGUMENTS**
 
 ## Overview
 
-This skill chains the entire research lifecycle into a single pipeline:
+This skill chains the older research lifecycle, with a mandatory Claim-PR migration boundary before governed experiments and paper submission:
 
 ```
-/idea-discovery → implement → /run-experiment → /auto-review-loop → /paper-writing (optional)
-├── Workflow 1 ──┤            ├────────── Workflow 2 ──────────────┤ ├── Workflow 3 ──┤
+/idea-discovery → Claim-PR bridge → /claim-run or legacy experiment → /claim-verdict → /paper-build gate
+├── exploratory ─┤ ├────────────── researchctl truth layer ───────────────────────────────┤
 ```
 
-It orchestrates up to three major workflows plus the implementation bridge between them. Workflow 3 is optional and controlled by `AUTO_WRITE`.
+It preserves the older orchestration style, but submission-grade state is owned by `researchctl`. Workflow 3 is optional draft writing only unless `/paper-build` and `audit submission` pass.
 
 ## Pipeline
 
@@ -74,6 +76,13 @@ Recommended: Idea 1. Shall I proceed with implementation?
 
 Once the user confirms which idea to pursue:
 
+0. **Enter the Claim-PR truth layer before governed implementation**:
+   - Ensure `python -m researchctl init` has run.
+   - Create or select an anchor from the chosen idea.
+   - Draft the selected idea as one or more Claim-PR objects with `/claim-batch`.
+   - Gate and freeze each claim before experiments with `/claim-gate`.
+   - If the user only wants exploratory brainstorming, stop here or keep outputs clearly marked as legacy exploratory material.
+
 1. **Read the idea details** from `idea-stage/IDEA_REPORT.md` (hypothesis, experimental design, pilot code) *(fall back to `./IDEA_REPORT.md` if not found)*
 
 2. **Implement the full experiment**:
@@ -90,7 +99,9 @@ Once the user confirms which idea to pursue:
 
 ### Stage 3: Deploy Experiments (Workflow 2 — Part 1)
 
-Deploy the full-scale experiments. Route by job count:
+Deploy the full-scale experiments. **Submission-grade route:** use `/claim-run` so runs, metrics, and artifacts are registered in `researchctl`. Legacy deployment commands are allowed only for exploratory runs that will not feed paper build until registered.
+
+Route by job count:
 
 **Small batch (≤5 jobs)** — direct deployment:
 ```
@@ -110,6 +121,7 @@ Deploy the full-scale experiments. Route by job count:
 - Launch experiments in screen sessions with proper CUDA_VISIBLE_DEVICES
 - For `/experiment-queue`: also OOM retry, stale-screen cleanup, phase dependencies, and crash-safe state
 - Verify experiments started successfully
+- For Claim-PR work: register each governed run via `researchctl run start/event/finish` through `/claim-run`.
 
 **Monitor progress:**
 
@@ -139,7 +151,13 @@ Pass `REVIEWER_DIFFICULTY` through unchanged. For `hard` and `nightmare`, the do
 
 ### Stage 5: Research Summary & Writing Handoff
 
-After the auto-review loop completes, prepare the handoff for paper writing.
+After the auto-review loop completes, prepare the Claim-PR verdict and paper-build handoff.
+
+**Truth-layer handoff is mandatory for submission-grade output:**
+- Use `/claim-verdict` to write `VERDICT.yaml` and the DB verdict.
+- Fill `CLAIM_MATRIX.yaml` provenance before `/claim-merge`.
+- Run `/claim-merge`, then `/paper-build`.
+- Run `python -m researchctl audit submission` before calling any output submission-ready.
 
 **Step 1:** Write the final research status report.
 
@@ -189,7 +207,7 @@ Skip this stage if `AUTO_WRITE=false` (default). Present the manual command:
 /paper-writing "NARRATIVE_REPORT.md" — venue: ICLR
 ```
 
-If `AUTO_WRITE=true`, stop and ask if `VENUE` is missing. Do not silently use a default venue. If manual figures are required, pause and list them before invoking paper writing.
+If `AUTO_WRITE=true`, do not invoke `/paper-writing` as a submission-grade route unless `/paper-build` has already passed for the relevant merged claims. Without that gate, this stage is draft-only. Stop and ask if `VENUE` is missing. Do not silently use a default venue. If manual figures are required, pause and list them before invoking paper writing.
 
 When ready, invoke:
 

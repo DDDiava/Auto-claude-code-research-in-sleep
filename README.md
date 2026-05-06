@@ -68,19 +68,25 @@ Custom [Claude Code](https://docs.anthropic.com/en/docs/claude-code) skills for 
 
 > These are full pipelines — you can also use each workflow independently. Already have an idea? Skip to Workflow 1.5. Have results? Jump to Workflow 3. Got reviews? Jump to Workflow 4. Want persistent memory? Enable [Research Wiki](#-research-wiki--persistent-research-memory). See [Quick Start](#-quick-start) for all commands and [Workflows](#-workflows) for the full breakdown.
 
-**Basic mode** — give ARIS a research direction, it handles everything:
-
-```
-/research-pipeline "factorized gap in discrete diffusion LMs"
-```
-
-**Claim-PR mode (recommended for evidence-governed research)** — make each claim a reviewable unit with frozen contracts, registered runs, verdict gates, and paper-input checks:
+**Default Claim-PR mode** — make each claim a reviewable unit with frozen contracts, registered runs, verdict gates, and paper-input checks:
 
 ```
 /claim-pr-start "factorized gap in discrete diffusion LMs"
 ```
 
-This route initializes the local `researchctl` control plane, then guides `anchor-init -> claim-batch -> claim-gate -> claim-run -> claim-verdict -> claim-merge -> paper-build`. `/research-pipeline`, `/idea-discovery`, and `/auto-review-loop` remain available as legacy/compatibility full-pipeline paths when you want the older end-to-end flow.
+This route initializes the local `researchctl` control plane, then guides `anchor-init -> claim-batch -> claim-gate -> claim-run -> claim-verdict -> claim-merge -> paper-build`. Use it for any evidence-governed or submission-grade project.
+
+For a new paper workspace, bootstrap the control plane instead of manually copying template files:
+
+```bash
+python bootstrap_claim_pr_project.py --aris /path/to/AutoPaperLoop --project /path/to/paper-project --platform both --git-init
+```
+
+**Legacy exploratory mode** — the older end-to-end flow is still available for brainstorming and compatibility, but it is not the submission-grade path until its outputs are migrated into Claim-PR objects and pass `researchctl paper build` / `researchctl audit submission`:
+
+```
+/research-pipeline "factorized gap in discrete diffusion LMs"
+```
 
 **🔥 Targeted mode** — got a paper you want to improve? Give ARIS the paper + the code:
 
@@ -232,12 +238,13 @@ claude mcp add codex -s user -- codex mcp-server
 
 # 3. Use in Claude Code
 claude
-> /idea-discovery "your research direction"  # Workflow 1 — be specific! not "NLP" but "factorized gap in discrete diffusion LMs"
-> /experiment-bridge                         # Workflow 1.5 — have a plan? implement + deploy + collect results
-> /auto-review-loop "your paper topic or scope"  # Workflow 2: review → fix → re-review overnight
-> /paper-writing "NARRATIVE_REPORT.md"       # Workflow 3: narrative → polished PDF
+> /claim-pr-start "your research direction"   # Default evidence-governed path: anchor → claims → runs → verdict → paper gate
+> /idea-discovery "your research direction"   # Legacy exploratory Workflow 1; migrate outputs into Claim-PR before experiments
+> /experiment-bridge                          # Legacy Workflow 1.5; use /claim-run for submission-grade runs
+> /auto-review-loop "your paper topic or scope"  # Legacy Workflow 2; use /claim-verdict and /claim-merge for Claim-PR evidence
+> /paper-writing "NARRATIVE_REPORT.md"        # Legacy draft writer; use /paper-build for Claim-PR submission gates
 > /rebuttal "paper/ + reviews" — venue: ICML    # Workflow 4: parse reviews → draft rebuttal → follow-up
-> /research-pipeline "your research direction"  # Full pipeline: Workflow 1 → 1.5 → 2 → 3 end-to-end
+> /research-pipeline "your research direction"  # Legacy exploratory full pipeline; not submission-grade without researchctl gates
 > /research-wiki init                           # 📚 Enable persistent research memory (one-time)
 > /meta-optimize                                # Meta: analyze usage logs → propose skill improvements
 ```
@@ -1128,11 +1135,17 @@ export OPENAI_API_KEY="your-key"
 
 ## 🧰 All Skills
 
-### 🚀 Full Pipeline
+### 🚀 Default Claim-PR Path
 
 | Skill | Description | Codex MCP? |
 |-------|-------------|:---:|
-| 🏗️ [`research-pipeline`](skills/research-pipeline/SKILL.md) | **End-to-end**: Workflow 1 → 1.5 → 2 → 3, from research direction to submission | Yes |
+| 🧾 [`claim-pr-start`](skills/claim-pr-start/SKILL.md) | **Evidence-governed**: anchor → claim batch → gate → run → verdict → merge → paper build | No |
+
+### 🧭 Legacy Exploratory Pipeline
+
+| Skill | Description | Codex MCP? |
+|-------|-------------|:---:|
+| 🏗️ [`research-pipeline`](skills/research-pipeline/SKILL.md) | Legacy Workflow 1 → 1.5 → 2 → 3 path for exploration; migrate outputs into Claim-PR before submission-grade build/audit | Yes |
 
 ### 🔍 Workflow 1: Idea Discovery & Method Refinement
 

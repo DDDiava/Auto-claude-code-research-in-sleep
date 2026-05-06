@@ -1,6 +1,6 @@
 ---
 name: paper-writing
-description: "Workflow 3: Full paper writing pipeline. Orchestrates paper-plan → paper-figure → figure-spec/paper-illustration/mermaid-diagram → paper-write → paper-compile → auto-paper-improvement-loop to go from a narrative report to a polished PDF. At `— effort: max | beast` (or explicit `— assurance: submission`), Phase 6 gates the Final Report on `tools/verify_paper_audits.sh`; the PDF is labelled `submission-ready` only when the external verifier is green. Use when user says \"写论文全流程\", \"write paper pipeline\", \"从报告到PDF\", \"paper writing\", or wants the complete paper generation workflow."
+description: "Workflow 3: Legacy paper writing pipeline. Orchestrates paper-plan → paper-figure → figure-spec/paper-illustration/mermaid-diagram → paper-write → paper-compile → auto-paper-improvement-loop to go from a narrative report to a polished draft PDF. Submission-grade Claim-PR projects must pass `researchctl paper build` and `researchctl audit submission`; the legacy audit verifier is a compatibility check, not a replacement for the truth layer."
 argument-hint: [narrative-report-path-or-topic]
 allowed-tools: Bash(*), Read, Write, Edit, Grep, Glob, Agent, Skill, mcp__codex__codex, mcp__codex__codex-reply
 ---
@@ -433,9 +433,27 @@ echo "$ASSURANCE" > paper/.aris/assurance.txt
 If `ASSURANCE=draft`, skip directly to the Final Report template below —
 **current behavior, no change** for the default `balanced` user.
 
-If `ASSURANCE=submission`, run the pre-flight checklist below, then the
-verifier. The verifier's exit code is the source of truth — do NOT
-self-declare "audits complete" based on conversation memory.
+If `ASSURANCE=submission`, first run the Claim-PR submission gate when a
+`.aris/` control plane is present, then run the compatibility pre-flight
+checklist and verifier. `researchctl audit submission` is the source of truth
+for Claim-PR projects; the legacy verifier remains a compatibility check for
+older drafts. Do NOT self-declare "audits complete" based on conversation
+memory.
+
+#### Claim-PR submission gate
+
+If `.aris/state.db` or `.aris/paper/CLAIM_MATRIX.yaml` exists, run:
+
+```bash
+python -m researchctl paper build
+python -m researchctl audit submission
+```
+
+- Exit 0 from both commands is required before any `submission-ready` label.
+- If either command fails, surface the blockers and stop before the legacy
+  verifier or Final Report.
+- If no `.aris/` control plane exists, label the run as legacy draft writing
+  unless the user explicitly bootstraps Claim-PR first.
 
 #### Submission pre-flight checklist
 

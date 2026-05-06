@@ -42,7 +42,16 @@ from .core import (
     start_run,
     write_verdict,
 )
-from .hooks import post_tool_hook, pre_tool_hook, read_hook_input, session_start_hook, stop_hook, workflow_state_hook
+from .hooks import (
+    platform_hook_error,
+    platform_hook_output,
+    post_tool_hook,
+    pre_tool_hook,
+    read_hook_input,
+    session_start_hook,
+    stop_hook,
+    workflow_state_hook,
+)
 from .paths import repo_root
 
 
@@ -179,16 +188,10 @@ def build_parser() -> argparse.ArgumentParser:
 
     hook = sub.add_parser("hook")
     hook_sub = hook.add_subparsers(dest="command", required=True)
-    p = hook_sub.add_parser("workflow-state")
-    p.add_argument("--session")
-    p = hook_sub.add_parser("session-start")
-    p.add_argument("--session")
-    p = hook_sub.add_parser("stop")
-    p.add_argument("--session")
-    p = hook_sub.add_parser("pre-tool")
-    p.add_argument("--session")
-    p = hook_sub.add_parser("post-tool")
-    p.add_argument("--session")
+    for command in ("workflow-state", "session-start", "stop", "pre-tool", "post-tool"):
+        p = hook_sub.add_parser(command)
+        p.add_argument("--session")
+        p.add_argument("--platform", choices=["raw", "codex", "claude"], default="raw")
     return parser
 
 
@@ -304,18 +307,37 @@ def main(argv: list[str] | None = None) -> int:
                 emit(session_start_hook(root, hook_input, args.session))
             elif args.command == "stop":
                 code, result = stop_hook(root, hook_input, args.session)
-                emit(result)
-                return code
+                if args.platform == "raw":
+                    emit(result)
+                    return code
+                emit(platform_hook_output("Stop", code, result))
+                return 0
             elif args.command == "pre-tool":
                 code, result = pre_tool_hook(root, hook_input, args.session)
-                emit(result)
-                return code
+                if args.platform == "raw":
+                    emit(result)
+                    return code
+                emit(platform_hook_output("PreToolUse", code, result))
+                return 0
             elif args.command == "post-tool":
                 code, result = post_tool_hook(root, hook_input, args.session)
-                emit(result)
-                return code
+                if args.platform == "raw":
+                    emit(result)
+                    return code
+                emit(platform_hook_output("PostToolUse", code, result))
+                return 0
         return 0
     except (ResearchCtlError, json.JSONDecodeError) as exc:
+        if getattr(args, "group", None) == "hook" and getattr(args, "platform", "raw") != "raw":
+            event_names = {
+                "workflow-state": "UserPromptSubmit",
+                "session-start": "SessionStart",
+                "stop": "Stop",
+                "pre-tool": "PreToolUse",
+                "post-tool": "PostToolUse",
+            }
+            emit(platform_hook_error(event_names.get(getattr(args, "command", ""), "PostToolUse"), exc))
+            return 0
         print(f"researchctl: error: {exc}", file=sys.stderr)
         return 1
 

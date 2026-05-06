@@ -8,7 +8,7 @@ import sys
 if __name__ == "__main__":
     raise SystemExit(
         subprocess.run(
-            [sys.executable, "-m", "researchctl", "hook", "session-start"],
+        [sys.executable, "-m", "researchctl", "hook", "session-start", "--platform", "claude"],
             input=sys.stdin.read(),
             text=True,
         ).returncode

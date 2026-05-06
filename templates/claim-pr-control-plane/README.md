@@ -1,8 +1,12 @@
 # Claim-PR Control Plane Template
 
-This template seeds a Trellis-inspired, file-based research control plane for AutoPaperLoop.
+This template is installed by the repo-level Claim-PR bootstrap command. Prefer the bootstrap path so `.aris`, `.codex`, `.claude`, skills, hooks, and the bootstrap manifest are installed together:
 
-Copy the template files into a research project, then initialize local state:
+```bash
+python bootstrap_claim_pr_project.py --aris /path/to/AutoPaperLoop --project /path/to/paper-project --platform both --git-init
+```
+
+After bootstrap, initialize or reconcile local state:
 
 ```bash
 python -m researchctl init

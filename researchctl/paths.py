@@ -41,8 +41,8 @@ Phase 7: archived
 
 [workflow-state:no_claim]
 No active claim is attached to this session.
-Default next action: create or attach a claim with `python -m researchctl claim create` and `python -m researchctl session attach`.
-Do not edit paper or research code directly without an active claim.
+Default next action: create or select a research anchor, gather orientation context, then draft candidate claims with `/claim-batch`.
+Do not edit paper or research code directly before a claim is created, gated, and attached.
 [/workflow-state:no_claim]
 
 [workflow-state:draft]

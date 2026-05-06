@@ -8,7 +8,7 @@ import sys
 def main() -> int:
     payload = sys.stdin.read()
     proc = subprocess.run(
-        [sys.executable, "-m", "researchctl", "hook", "session-start"],
+        [sys.executable, "-m", "researchctl", "hook", "session-start", "--platform", "codex"],
         input=payload,
         text=True,
     )
