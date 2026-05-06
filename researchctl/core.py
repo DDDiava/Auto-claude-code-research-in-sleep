@@ -1459,7 +1459,7 @@ def list_reviews(claim_id: str | None = None, root_arg: str | os.PathLike[str] |
 
 def next_required_action(claim: Any | None) -> str:
     if claim is None:
-        return "create or attach a claim"
+        return "create or select a research anchor, then draft candidate claims with /claim-batch"
     status = claim["status"]
     stage = claim["stage"]
     if status == "draft":
@@ -1486,7 +1486,7 @@ def snapshot_session(session_key: str, root_arg: str | os.PathLike[str] | None =
                 "session": session_key,
                 "claim": None,
                 "stage": "no_claim",
-                "next_required_action": "create or attach a claim",
+                "next_required_action": "create or select a research anchor, then draft candidate claims with /claim-batch",
                 "allowed_paths": [],
                 "read_files": [".aris/workflow.md"],
             }
