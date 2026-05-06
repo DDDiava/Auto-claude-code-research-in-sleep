@@ -69,6 +69,7 @@ def build_parser() -> argparse.ArgumentParser:
     sub = parser.add_subparsers(dest="group", required=True)
 
     sub.add_parser("init")
+    sub.add_parser("status")
 
     anchor = sub.add_parser("anchor")
     anchor_sub = anchor.add_subparsers(dest="command", required=True)
@@ -122,7 +123,7 @@ def build_parser() -> argparse.ArgumentParser:
     p = session_sub.add_parser("detach")
     p.add_argument("--session", required=True)
     p = session_sub.add_parser("show")
-    p.add_argument("--session", required=True)
+    p.add_argument("--session")
     session_sub.add_parser("list")
 
     run = sub.add_parser("run")
@@ -162,7 +163,7 @@ def build_parser() -> argparse.ArgumentParser:
         p.add_argument("--write", action="store_true")
 
     snapshot = sub.add_parser("snapshot")
-    snapshot_sub = snapshot.add_subparsers(dest="command", required=True)
+    snapshot_sub = snapshot.add_subparsers(dest="command", required=False)
     p = snapshot_sub.add_parser("session")
     p.add_argument("--session", required=True)
     p = snapshot_sub.add_parser("claim")
@@ -202,6 +203,17 @@ def main(argv: list[str] | None = None) -> int:
     try:
         if args.group == "init":
             emit(init_project(root))
+        elif args.group == "status":
+            emit(
+                {
+                    "root": str(root),
+                    "anchors": len(list_anchors(root)),
+                    "claims": len(list_claims(root_arg=root)),
+                    "sessions": len(list_sessions(root)),
+                    "runs": len(list_runs(root_arg=root)),
+                    "paper": snapshot_paper(root),
+                }
+            )
         elif args.group == "anchor":
             if args.command == "create":
                 emit(create_anchor(args.title, args.slug, root))
@@ -243,7 +255,7 @@ def main(argv: list[str] | None = None) -> int:
             elif args.command == "detach":
                 emit(detach_session(args.session, root))
             elif args.command == "show":
-                emit(show_session(args.session, root))
+                emit(show_session(args.session, root) if args.session else list_sessions(root))
             elif args.command == "list":
                 emit(list_sessions(root))
         elif args.group == "run":
@@ -265,7 +277,9 @@ def main(argv: list[str] | None = None) -> int:
         elif args.group == "context":
             emit(context_payload(args.command, args.claim, args.write, root))
         elif args.group == "snapshot":
-            if args.command == "session":
+            if args.command is None:
+                emit({"sessions": list_sessions(root), "paper": snapshot_paper(root)})
+            elif args.command == "session":
                 emit(snapshot_session(args.session, root))
             elif args.command == "claim":
                 emit(snapshot_claim(args.claim, root))

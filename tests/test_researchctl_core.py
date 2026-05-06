@@ -20,6 +20,22 @@ def read_json(stdout: str):
     return json.loads(stdout)
 
 
+def test_cli_status_and_default_snapshot_are_agent_friendly(tmp_path: Path) -> None:
+    status = read_json(run_ctl(tmp_path, "status").stdout)
+    assert status["anchors"] == 0
+    assert status["claims"] == 0
+    assert status["sessions"] == 0
+    assert status["runs"] == 0
+    assert "paper" in status
+
+    sessions = read_json(run_ctl(tmp_path, "session", "show").stdout)
+    assert sessions == []
+
+    snapshot = read_json(run_ctl(tmp_path, "snapshot").stdout)
+    assert snapshot["sessions"] == []
+    assert "paper" in snapshot
+
+
 def write_valid_contract(claim_dir: Path, claim_id: str = "C001") -> None:
     (claim_dir / "CONTRACT.yaml").write_text(
         f"""version: 1

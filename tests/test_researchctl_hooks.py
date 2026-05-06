@@ -338,6 +338,80 @@ def test_pre_tool_hook_denies_powershell_and_heredoc_cross_worktree_writes(tmp_p
         assert "outside active claim allowed paths" in "; ".join(result["blockers"])
 
 
+def test_pre_tool_hook_allows_read_only_python_without_active_claim(tmp_path: Path) -> None:
+    code, payload = pre_tool_hook(
+        tmp_path,
+        {
+            "tool_name": "PowerShell",
+            "tool_input": {
+                "command": "python -c \"import importlib.util; print(bool(importlib.util.find_spec('json')))\"",
+            },
+        },
+    )
+    assert code == 0
+    assert payload["decision"] == "allow"
+
+
+def test_pre_tool_hook_resolves_shell_paths_against_tool_cwd(tmp_path: Path) -> None:
+    create_anchor("Anchor", root_arg=tmp_path)
+    create_claim("A001", "Claim", root_arg=tmp_path)
+    attach_session("S1", "C001", role="builder", root_arg=tmp_path)
+
+    code, payload = pre_tool_hook(
+        tmp_path,
+        {
+            "session": "S1",
+            "cwd": str(tmp_path / "worktrees" / "C001"),
+            "tool_name": "PowerShell",
+            "tool_input": {"command": "python - <<'PY'\nfrom pathlib import Path\nPath('notes.txt').write_text('x')\nPY"},
+        },
+    )
+    assert code == 0
+    assert payload["decision"] == "allow"
+
+
+def test_pre_tool_hook_allows_root_shared_dirs_and_ignores_powershell_options(tmp_path: Path) -> None:
+    create_anchor("Anchor", root_arg=tmp_path)
+    create_claim("A001", "Claim", root_arg=tmp_path)
+    attach_session("S1", "C001", role="builder", root_arg=tmp_path)
+
+    for command in ("mkdir artifacts", "New-Item -ItemType Directory -Force artifacts"):
+        code, payload = pre_tool_hook(
+            tmp_path,
+            {
+                "session": "S1",
+                "cwd": str(tmp_path),
+                "tool_name": "PowerShell",
+                "tool_input": {"command": command},
+            },
+        )
+        assert code == 0, payload
+        assert payload["decision"] == "allow"
+
+
+def test_pre_tool_hook_does_not_treat_regex_literals_as_paths(tmp_path: Path) -> None:
+    create_anchor("Anchor", root_arg=tmp_path)
+    create_claim("A001", "Claim", root_arg=tmp_path)
+    attach_session("S1", "C001", role="builder", root_arg=tmp_path)
+
+    command = (
+        "$html = curl.exe -s -L \"https://alignment.anthropic.com/2026/psm/\"; "
+        "$clean = $html -replace '(?s)<script.*?</script>',' ' -replace '<[^>]+>',' '; "
+        "$text = [System.Net.WebUtility]::HtmlDecode($clean)"
+    )
+    code, payload = pre_tool_hook(
+        tmp_path,
+        {
+            "session": "S1",
+            "cwd": str(tmp_path / "worktrees" / "C001"),
+            "tool_name": "PowerShell",
+            "tool_input": {"command": command},
+        },
+    )
+    assert code == 0
+    assert payload["decision"] == "allow"
+
+
 def test_pre_tool_hook_allows_shared_artifact_and_log_roots(tmp_path: Path) -> None:
     create_anchor("Anchor", root_arg=tmp_path)
     create_claim("A001", "Claim", root_arg=tmp_path)

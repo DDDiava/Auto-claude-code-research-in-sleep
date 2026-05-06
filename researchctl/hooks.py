@@ -270,6 +270,62 @@ def _tool_payload(input_data: dict) -> dict:
     return input_data
 
 
+def _tool_cwd(input_data: dict, root: Path) -> Path:
+    payload = _tool_payload(input_data)
+    value = payload.get("cwd") or input_data.get("cwd")
+    if isinstance(value, str) and value.strip():
+        candidate = Path(value.strip())
+        return candidate if candidate.is_absolute() else root / candidate
+    return root
+
+
+def _resolve_candidate_path(path: str, root: Path, cwd: Path) -> str:
+    candidate = Path(path)
+    if candidate.is_absolute():
+        return str(candidate)
+    return str(cwd / candidate)
+
+
+def _strip_token(value: str) -> str:
+    return value.strip().strip('"').strip("'").rstrip(",.;)")
+
+
+def _command_candidate_paths(command: str) -> list[str]:
+    paths: list[str] = []
+    for match in re.findall(r"(?:(?:^|\s)(?:[A-Za-z]:)?[./\\]?[A-Za-z0-9_.\\/-]+\.(?:py|yaml|yml|json|md|tex|txt|csv|log))", command):
+        paths.append(_strip_token(match))
+    for match in re.findall(r"(?:>|>>)\s*([^\s;&|]+)", command):
+        paths.append(_strip_token(match))
+    for match in re.findall(r"(?<![\w.-])(?:[A-Za-z]:)?(?:\.{1,2}[\\/])?(?:worktrees|\.aris|artifacts|logs)(?:[\\/][^\s;&|><\"']*)?", command):
+        paths.append(_strip_token(match))
+    for match in re.findall(r"(?i)(?:^|[;&|]\s*|\s)(?:mkdir|md|touch)\s+(?:-[A-Za-z0-9_-]+\s+)*([^\s;&|><\"']+)", command):
+        paths.append(_strip_token(match))
+    for command_match in re.finditer(
+        r"(?i)\b(?:set-content|add-content|out-file|new-item|remove-item|copy-item|move-item|rename-item|clear-content)\b(?P<args>[^;&|]*)",
+        command,
+    ):
+        args = command_match.group("args")
+        path_arg = re.search(r"(?i)(?:^|\s)-(?:literalpath|path|destination|target)\s+([^\s;&|><\"']+)", args)
+        if path_arg:
+            paths.append(_strip_token(path_arg.group(1)))
+            continue
+        tokens = re.findall(r"[^\s;&|><\"']+", args)
+        for token in tokens:
+            cleaned = _strip_token(token)
+            if not cleaned or cleaned.startswith("-"):
+                continue
+            if not (
+                re.search(r"\.(?:py|yaml|yml|json|md|tex|txt|csv|log)$", cleaned, re.IGNORECASE)
+                or re.match(r"(?i)^(?:worktrees|\.aris|artifacts|logs)(?:[\\/].*)?$", cleaned)
+                or "\\" in cleaned
+                or "/" in cleaned
+            ):
+                continue
+            paths.append(cleaned)
+            break
+    return [path for path in dict.fromkeys(paths) if path]
+
+
 def _candidate_paths(input_data: dict) -> list[str]:
     payload = _tool_payload(input_data)
     paths: list[str] = []
@@ -283,17 +339,7 @@ def _candidate_paths(input_data: dict) -> list[str]:
             paths.extend(str(item).strip() for item in value if str(item).strip())
     command = payload.get("command") or payload.get("cmd")
     if isinstance(command, str):
-        for match in re.findall(r"(?:(?:^|\s)(?:[A-Za-z]:)?[./\\]?[A-Za-z0-9_.\\/-]+\.(?:py|yaml|yml|json|md|tex|txt|csv|log))", command):
-            paths.append(match.strip())
-        for match in re.findall(r"(?:>|>>)\s*([^\s;&|]+)", command):
-            paths.append(match.strip().strip('"').strip("'"))
-        for match in re.findall(r"(?<![\w.-])(?:[A-Za-z]:)?(?:\.{1,2}[\\/])?(?:worktrees|\.aris|artifacts|logs)[\\/][^\s;&|><\"']+", command):
-            paths.append(match.strip().strip('"').strip("'"))
-        for match in re.findall(
-            r"(?i)\b(?:set-content|add-content|out-file|new-item|remove-item|copy-item|move-item|rename-item|clear-content)\s+([^\s;&|><\"']+)",
-            command,
-        ):
-            paths.append(match.strip().strip('"').strip("'"))
+        paths.extend(_command_candidate_paths(command))
     return list(dict.fromkeys(paths))
 
 
@@ -311,9 +357,14 @@ def _is_shell_tool(input_data: dict) -> bool:
 def _shell_command_is_mutating(command: str) -> bool:
     if re.search(r"(^|[^>])>{1,2}[^>]", command):
         return True
+    python_write = re.search(
+        r"(?i)\bpython\b.*(?:write_text|write_bytes|open\s*\([^)]*,\s*['\"][wa+]|shutil\.|os\.remove|os\.rename|unlink\s*\(|mkdir\s*\()",
+        command,
+        re.DOTALL,
+    )
     return (
         re.search(r"(?i)(^|[;&|]\s*|\s)(touch|mkdir|rm|mv|cp|tee|sed\s+-i)\b", command) is not None
-        or re.search(r"(?i)(^|[;&|]\s*|\s)python\s+(?:-c\b|-\s*(?:<<|\Z)|<<)", command) is not None
+        or python_write is not None
         or re.search(
             r"(?i)\b(set-content|add-content|out-file|new-item|remove-item|copy-item|move-item|rename-item|clear-content)\b",
             command,
@@ -372,12 +423,13 @@ def _active_claim_row(root: Path, session_key: str | None):
 def pre_tool_hook(root: Path, input_data: dict | None = None, session_key: str | None = None) -> tuple[int, dict]:
     input_data = input_data or {}
     resolved = resolve_session_key(input_data, session_key)
-    candidate_paths = _candidate_paths(input_data)
+    cwd = _tool_cwd(input_data, root)
+    candidate_paths = [_resolve_candidate_path(path, root, cwd) for path in _candidate_paths(input_data)]
     command = _command_text(input_data)
     shell_mutation = _is_shell_tool(input_data) and _shell_command_is_mutating(command)
     write_paths = candidate_paths if _is_write_tool(input_data) or shell_mutation else []
     if shell_mutation and not write_paths:
-        write_paths = ["."]
+        write_paths = [str(cwd)]
     policy = evaluate_pre_tool_policy(
         root,
         resolved,
